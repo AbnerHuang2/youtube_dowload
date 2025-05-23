@@ -1,9 +1,39 @@
+import random
+
 import requests
+
+USER_AGENTS = [
+    # Chrome - Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.126 Safari/537.36",
+    # Chrome - macOS
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 12_5_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.5615.138 Safari/537.36",
+    # Edge - Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.2478.80",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.126 Safari/537.36 Edg/113.0.1774.50",
+    # Firefox - Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:114.0) Gecko/20100101 Firefox/114.0",
+    # Firefox - macOS
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13.4; rv:125.0) Gecko/20100101 Firefox/125.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 12.5; rv:114.0) Gecko/20100101 Firefox/114.0",
+    # Safari - macOS
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 12_6_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Safari/605.1.15",
+    # Safari - iPhone iOS
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
+    # Samsung Internet - Android
+    "Mozilla/5.0 (Linux; Android 13; SM-G990B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/24.0 Chrome/112.0.5615.138 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/18.0 Chrome/102.0.5005.167 Mobile Safari/537.36"
+]
+
 
 def fetch_emag_products(keyword="husa telefon"):
     headers = {
         'accept': 'application/json',
-        'user-agent': 'Mozilla/5.0',
+        'user-agent': random.choice(USER_AGENTS),
         'x-requested-with': 'XMLHttpRequest',
         'x-app-name': 'photon-static',
         'x-app-module': 'SortOptions',
@@ -39,6 +69,9 @@ def fetch_emag_products(keyword="husa telefon"):
         return []
 
     data = response.json()
+    # 响应json写入文件中
+    with open("response.json", "w", encoding="utf-8") as f:
+        f.write(response.text)
     items = data.get("data").get("items", [])
 
     products = []
@@ -46,8 +79,17 @@ def fetch_emag_products(keyword="husa telefon"):
         # id
         item_id = item.get("id", "N/A")
         name = item.get("name", "N/A")
+        part_number_key = item.get("part_number_key", "N/A")
         category_tags = item.get("category", {}).get("tags", [])
+        # 受欢迎标签
+        # 从item.get("unified_badges", [])返回的对象数组中获取到每个item的label值放入到unified_badges_tags
+        unified_badges_tags = [badge.get("label") for badge in item.get("offer", {}).get("unified_badges", [])]
+        # 改商品有多少个不同的卖家
+        multiple_offers_count = item.get("multiple_offers_count", 0)
+        # 该商品有多少个不同的卖家（包括二手）
+        offers_count = item.get("offers_count", 0)
         price = item.get("offer", {}).get("price", {}).get("current", 0)
+        price_before_tax = item.get("offer", {}).get("price", {}).get("net", 0)
         rating = item.get("feedback", {}).get("rating", 0)
         reviews = item.get("feedback", {}).get("reviews", {}).get("count", 0)
         questions = item.get("feedback", {}).get("questions", {}).get("count", 0)
@@ -59,8 +101,13 @@ def fetch_emag_products(keyword="husa telefon"):
         products.append({
             "id": item_id,
             "name": name,
+            "part_number_key": part_number_key,
             "category_tags": category_tags,
+            "unified_badges_tags": unified_badges_tags,
+            "multiple_offers_count": multiple_offers_count,
+            "offers_count": offers_count,
             "price": price,
+            "price_before_tax": price_before_tax,
             "rating": rating,
             "reviews": reviews,
             "questions": questions,
@@ -72,7 +119,7 @@ def fetch_emag_products(keyword="husa telefon"):
     return sorted(products, key=lambda x: x["reviews"], reverse=True)
 
 def main():
-    keyword = "husa telefon"
+    keyword = "suport si docking telefoane" # husa telefon 手机壳
     products = fetch_emag_products(keyword)
 
     if not products:
@@ -87,8 +134,13 @@ def main():
         print(f"\n#{idx}")
         print(f"ID: {product['id']}")
         print(f"名称: {product['name']}")
+        print(f"型号: {product['part_number_key']}")
         print(f"分类标签: {', '.join(product['category_tags'])}")
+        print(f"受欢迎标签: {', '.join(product['unified_badges_tags'])}")
+        print(f"卖家数量: {product['multiple_offers_count']}")
+        print(f"总卖家数量: {product['offers_count']}")
         print(f"价格: {product['price']} RON")
+        print(f"税前价格: {product['price_before_tax']} RON")
         print(f"评分: {product['rating']} / 5")
         print(f"评论数: {product['reviews']}")
         print(f"问题数: {product['questions']}")
